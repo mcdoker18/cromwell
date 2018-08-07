@@ -4,7 +4,7 @@ import cromwell.core.simpleton.WomValueSimpleton
 import cromwell.database.sql.SqlConverters._
 import cromwell.database.sql.tables.{CallCachingSimpletonEntry, JobStoreSimpletonEntry}
 import wom.types.{WomBooleanType, WomFloatType, WomIntegerType, WomStringType}
-import wom.values.{WomPrimitive, WomSingleFile, WomValue}
+import wom.values.{WomPrimitive, WomSingleFile, WomUnlistedDirectory, WomValue}
 
 import scala.util.Try
 
@@ -27,6 +27,7 @@ object Simpletons {
       case "Float" => WomFloatType.coerceRawValue
       case "Boolean" => WomBooleanType.coerceRawValue
       case "File" => s => Try(WomSingleFile(s))
+      case "Directory" => s => Try(WomUnlistedDirectory(s))
       case _ => throw new RuntimeException(s"unrecognized simpleton WOM type: $womType")
     }
     WomValueSimpleton(simpletonKey, womValue(simpletonValue).get.asInstanceOf[WomPrimitive])
