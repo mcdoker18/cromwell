@@ -2,11 +2,12 @@ package centaur.test.metadata
 
 import java.time.OffsetDateTime
 
+import cats.data.Kleisli
+import cats.effect._
 import cats.instances.option._
 import cats.syntax.apply._
 import io.circe._
 import io.circe.parser._
-import cats.effect._
 
 /**
   * The first failure message of a call. Based on the JMUI FailureMessage:
@@ -39,9 +40,9 @@ object CallAttemptFailure {
   private def fromWorkflowJson(json: Json): Vector[CallAttemptFailure] = {
     for {
       workflowObject <- json.asObject.toVector
-      workflowIdJson <- workflowObject.kleisli("id").toVector
+      workflowIdJson <- workflowObject("id").toVector
       workflowId <- workflowIdJson.asString.toVector
-      callsJson <- workflowObject.kleisli("calls").toVector
+      callsJson <- workflowObject("calls").toVector
       callsObject <- callsJson.asObject.toVector
       callNameAndJson <- callsObject.toVector
       (callName, callJson) = callNameAndJson
@@ -55,22 +56,39 @@ object CallAttemptFailure {
   private def fromCallAttempt(workflowId: String,
                               callName: String,
                               jsonObject: JsonObject): Option[CallAttemptFailure] = {
-    val shardIndexOption = jsonObject.kleisli("shardIndex").flatMap(_.asNumber).flatMap(_.toInt)
-    val attemptOption = jsonObject.kleisli("attempt").flatMap(_.asNumber).flatMap(_.toInt)
 
-    val startOption = jsonObject.kleisli("start").flatMap(_.asString).map(OffsetDateTime.parse)
-    val endOption = jsonObject.kleisli("end").flatMap(_.asString).map(OffsetDateTime.parse)
+    val jsonObjectInt = for {
+      json <- jsonObject.kleisli
+      number <- Kleisli.liftF(json.asNumber)
+      int <- Kleisli.liftF(number.toInt)
+    } yield int
 
-    val stdoutOption = jsonObject.kleisli("stdout").flatMap(_.asString)
-    val stderrOption = jsonObject.kleisli("stderr").flatMap(_.asString)
-    val callRootOption = jsonObject.kleisli("callRoot").flatMap(_.asString)
+    val jsonObjectString = for {
+      json <- jsonObject.kleisli
+      string <- Kleisli.liftF(json.asString)
+    } yield string
+
+    val jsonObjectOffsetDateTime = for {
+      string <- jsonObjectString
+      offsetDateTime = OffsetDateTime.parse(string)
+    } yield offsetDateTime
+
+    val shardIndexOption = jsonObjectInt("shardIndex")
+    val attemptOption = jsonObjectInt("attempt")
+
+    val startOption = jsonObjectOffsetDateTime("start")
+    val endOption = jsonObjectOffsetDateTime("end")
+
+    val stdoutOption = jsonObjectString("stdout")
+    val stderrOption = jsonObjectString("stderr")
+    val callRootOption = jsonObjectString("callRoot")
 
     val messageOption = for {
-      failuresJson <- jsonObject.kleisli("failures")
+      failuresJson <- jsonObject("failures")
       failuresVector <- failuresJson.asArray
       firstFailure <- failuresVector.headOption
       failureObject <- firstFailure.asObject
-      failureMessageJson <- failureObject.kleisli("message")
+      failureMessageJson <- failureObject("message")
       failureMessage <- failureMessageJson.asString
     } yield failureMessage
 
